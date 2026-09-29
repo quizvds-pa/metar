@@ -1,0 +1,30 @@
+name: Aggiorna METAR
+
+on:
+  schedule:
+    - cron: "25,55 * * * *"   # ogni 30 minuti (UTC), dopo i METAR di LIPE
+  workflow_dispatch:          # pulsante "Run workflow" per lanciarlo a mano
+
+permissions:
+  contents: write
+
+jobs:
+  metar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scarica METAR LIPE (ultime 48 ore)
+        run: |
+          curl -sf -A "metar-liko (github.com/quizvds-pa/metar)" \
+            "https://aviationweather.gov/api/data/metar?ids=LIPE&format=json&hours=48" \
+            -o metar.tmp
+          python3 -c "import json;d=json.load(open('metar.tmp'));assert isinstance(d,list) and d"
+          mv metar.tmp metar.json
+
+      - name: Salva nel repository
+        run: |
+          git config user.name "metar-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add metar.json
+          git diff --cached --quiet || (git commit -m "METAR $(date -u +%d%H%MZ)" && git push)
