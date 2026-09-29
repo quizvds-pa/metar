@@ -85,11 +85,6 @@
   .tag.A{background:#e5f0ff;color:#0060df} .tag.a{background:#e8f8ec;color:#1f8a3b} .tag.s{background:#e6f7fa;color:#127f94} .tag.p{background:#f4eafb;color:#8a3fb8}
   .chosen{margin-top:10px;font-size:14px;color:var(--sub);line-height:1.5}
   .chosen b{color:var(--text);font-size:16px}
-  .form{display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--sep)}
-  .form.open{display:block}
-  .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .fgrid .full{grid-column:1/-1}
-  .fgrid label{display:block;font-size:12px;color:var(--sub);margin:0 0 4px 4px}
   .err{background:#fff3f2;color:#b3261e;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.5;display:none;margin-top:12px}
   .hist{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12.5px;line-height:1.6;max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-word}
   footer{text-align:center;color:var(--sub);font-size:12px;margin-top:26px;line-height:1.6}
@@ -125,24 +120,6 @@
     <div>
       <label for="selStation">METAR più vicino (puoi cambiarlo)</label>
       <select id="selStation"><option>Caricamento…</option></select>
-    </div>
-  </div>
-  <div class="row" style="padding-bottom:0;border:none">
-    <span class="k" style="font-size:13px">Non lo trovi o la pista non è nota? Aggiungilo tu.</span>
-    <button class="btn ghost small" id="toggleForm">+ Campo</button>
-  </div>
-  <div class="form" id="fieldForm">
-    <div class="fgrid">
-      <div class="full"><label>Nome del campo</label><input id="fName" placeholder="es. Aviosuperficie Rossi"></div>
-      <div><label>Elevazione (ft)</label><input id="fElev" type="number" inputmode="decimal" placeholder="105"></div>
-      <div><label>QFU pista (° magnetici)</label><input id="fQfu" type="number" inputmode="decimal" placeholder="029"></div>
-      <div><label>Latitudine (es. 44.475)</label><input id="fLat" type="number" inputmode="decimal" step="any" placeholder="facoltativa"></div>
-      <div><label>Longitudine (es. 11.542)</label><input id="fLon" type="number" inputmode="decimal" step="any" placeholder="facoltativa"></div>
-    </div>
-    <div class="note">Con le coordinate l'app trova da sola il METAR più vicino. Il campo resta salvato su questo dispositivo.</div>
-    <div class="inline" style="margin-top:10px">
-      <button class="btn small" id="saveField">Salva campo</button>
-      <button class="btn ghost small" id="delField" style="display:none;color:var(--red)">Elimina campo</button>
     </div>
   </div>
 </div>
@@ -383,9 +360,8 @@ async function loadFields(){
   mergeFields();
 }
 function mergeFields(){
-  const custom = store.get("metar.custom", []).map(f=>({...f, t:"p", custom:true}));
   const presetIds = new Set(PRESET_FIELDS.map(f=>f.id));
-  state.fields = [...PRESET_FIELDS, ...custom, ...state.dbFields.filter(f=>!presetIds.has(f.id))];
+  state.fields = [...PRESET_FIELDS, ...state.dbFields.filter(f=>!presetIds.has(f.id))];
 }
 
 /* ===== Ricerca campi ===== */
@@ -408,7 +384,7 @@ function search(q){
 }
 function showResults(list){
   const box=$("results");
-  if(!list.length){ box.innerHTML = `<div class="res"><span class="m">Nessun campo trovato. Puoi aggiungerlo con “+ Campo”.</span></div>`; box.classList.add("open"); return; }
+  if(!list.length){ box.innerHTML = `<div class="res"><span class="m">Nessun campo trovato.</span></div>`; box.classList.add("open"); return; }
   box.innerHTML = list.map((f,i)=>{
     const ns = nearestStation(f.la,f.lo);
     const meta = [ /^[A-Z]{4}$/.test(f.id)?f.id:"", f.c, f.e!=null?Math.round(f.e)+" ft":"", f.r&&f.r.length?"RWY "+f.r.map(r=>r[0]+"/"+r[1]).join(", "):"", ns?`METAR ${ns.s.id} ${Math.round(ns.d)} km`:"" ].filter(Boolean).join(" · ");
@@ -422,15 +398,13 @@ function selectField(f, keepStation){
   state.field = f; state.rwy = 0;
   store.set("metar.sel", f);
   $("results").classList.remove("open"); $("search").value = ""; $("search").blur();
-  $("fieldForm").classList.remove("open");
   buildRwyMenu(); showChosen(); chooseStation(!keepStation); loadData();
 }
 function showChosen(){
   const f=F();
   $("chosen").innerHTML = `<b>${f.n}</b> <span class="tag ${f.t}">${TYPE[f.t]||""}</span><br>` +
     [ /^[A-Z]{4}$/.test(f.id)?f.id:"", f.c, f.e!=null?`elevazione ${Math.round(f.e)} ft`:"elevazione non nota" ].filter(Boolean).join(" · ") +
-    (f.custom?` · <a href="#" id="editField" style="color:var(--blue)">modifica</a>`:"");
-  const ed=$("editField"); if(ed) ed.onclick=e=>{ e.preventDefault(); openForm(F()); };
+    "";
 }
 function buildRwyMenu(){
   const r = F().r||[];
@@ -501,7 +475,7 @@ function drawRose(o){
   const pad = n => String(Math.round(n)).padStart(3,"0");
   if(!RW){
     $("rwyName").textContent = "pista non nota";
-    ["rA","rB"].forEach(id=>{ $(id).classList.remove("best"); $(id).querySelector(".t").textContent="RWY —"; $(id).querySelector(".c").textContent="Aggiungi il campo con “+ Campo” indicando il QFU."; });
+    ["rA","rB"].forEach(id=>{ $(id).classList.remove("best"); $(id).querySelector(".t").textContent="RWY —"; $(id).querySelector(".c").textContent="Pista non in archivio: componenti non calcolabili."; });
     $("windNote").innerHTML = "Per questo campo il database non riporta l'orientamento della pista." + far;
     return;
   }
@@ -649,40 +623,6 @@ function render(){
   if(state.updated) $("foot").innerHTML = `Dati: aviationweather.gov (NOAA), aggiornati alle ${hhmm(state.updated)} · Solo a scopo didattico.<br>Non sostituisce il briefing ufficiale né le informazioni radio del campo.`;
 }
 
-/* ===== Gestione campi personali ===== */
-function openForm(f){
-  $("fieldForm").classList.add("open");
-  const r = f && f.r && f.r[0];
-  $("fName").value = f?f.n:""; $("fElev").value = f&&f.e!=null?f.e:"";
-  $("fQfu").value = r ? Math.round((r[2]-MAG_VAR+360)%360) : "";
-  $("fLat").value = f&&f.la!=null?f.la:""; $("fLon").value = f&&f.lo!=null?f.lo:"";
-  $("delField").style.display = f&&f.custom ? "" : "none";
-  $("fieldForm").dataset.edit = f&&f.custom ? f.id : "";
-}
-$("toggleForm").onclick = ()=>{
-  if($("fieldForm").classList.contains("open")) $("fieldForm").classList.remove("open");
-  else openForm(null);
-};
-$("saveField").onclick = ()=>{
-  const n=$("fName").value.trim(), e=parseFloat($("fElev").value), qfu=parseFloat($("fQfu").value);
-  if(!n || isNaN(e) || isNaN(qfu)){ alert("Inserisci almeno nome, elevazione e QFU della pista."); return; }
-  const la=parseFloat($("fLat").value), lo=parseFloat($("fLon").value);
-  const q=((qfu%360)+360)%360;
-  const edit = $("fieldForm").dataset.edit;
-  const f = { id: edit || ("P-"+Date.now()), n, c:"", e, la:isNaN(la)?null:la, lo:isNaN(lo)?null:lo,
-              r:[[rwyDes(q), rwyDes(q+180), (q+MAG_VAR)%360, null, ""]] };
-  const custom = store.get("metar.custom", []).filter(x=>x.id!==f.id);
-  custom.push(f); store.set("metar.custom", custom);
-  mergeFields();
-  selectField(state.fields.find(x=>x.id===f.id));
-};
-$("delField").onclick = ()=>{
-  const id = $("fieldForm").dataset.edit; if(!id) return;
-  if(!confirm("Eliminare questo campo?")) return;
-  store.set("metar.custom", store.get("metar.custom", []).filter(x=>x.id!==id));
-  mergeFields(); selectField(PRESET_FIELDS[0]);
-};
-
 /* ===== Eventi ===== */
 $("refresh").onclick = async ()=>{ await loadStations(); buildStationMenu(); $("selStation").value = state.icao; loadData(); };
 $("search").oninput = e=>{ const q=e.target.value; if(q.trim()) showResults(search(q)); else $("results").classList.remove("open"); };
@@ -722,7 +662,7 @@ $("decode").onclick = ()=>{
 (async ()=>{
   mergeFields();
   const saved = store.get("metar.sel", null);
-  state.field = (saved && saved.n) ? saved : PRESET_FIELDS[0];
+  state.field = (saved && saved.n && !saved.custom) ? saved : PRESET_FIELDS[0];
   buildRwyMenu(); showChosen();
   await Promise.all([loadStations(), loadFields()]);
   const fresh = state.fields.find(f=>f.id===state.field.id); if(fresh){ state.field = fresh; buildRwyMenu(); showChosen(); }
