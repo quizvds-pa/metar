@@ -276,7 +276,20 @@ async function load(){
   $("refresh").innerHTML = '<span class="spin">↻</span>';
   $("err").style.display="none";
   try{
-    const data = await fetchJson(API(state.icao, state.hours));
+    let data = null;
+    if(state.icao==="LIPE"){
+      // file aggiornato ogni 30 min da GitHub Actions nello stesso sito (niente CORS)
+      try{
+        const r = await fetch("metar.json?t="+Date.now(), {cache:"no-store"});
+        if(r.ok){
+          const all = await r.json();
+          const from = Date.now()/1000 - state.hours*3600;
+          data = all.filter(o=>o.obsTime>=from);
+          if(!data.length) data = all;
+        }
+      }catch(e){}
+    }
+    if(!data) data = await fetchJson(API(state.icao, state.hours));
     if(!Array.isArray(data) || !data.length) throw new Error("Nessun METAR disponibile per "+state.icao);
     data.sort((a,b)=>a.obsTime-b.obsTime);
     state.data = data;
