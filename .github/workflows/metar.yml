@@ -85,6 +85,57 @@ jobs:
           if not stations:
               raise SystemExit("Nessun METAR scaricato")
 
+      - name: Elenco campi italiani (OurAirports, dominio pubblico)
+        continue-on-error: true
+        shell: python
+        run: |
+          import csv, io, json, math, re, urllib.request
+          BASE = "https://raw.githubusercontent.com/davidmegginson/ourairports-data/main/"
+          def rows(name):
+              with urllib.request.urlopen(BASE + name, timeout=120) as r:
+                  return list(csv.DictReader(io.StringIO(r.read().decode("utf-8"))))
+          def num(v):
+              try: return float(v)
+              except (TypeError, ValueError): return None
+          def brg(la1, lo1, la2, lo2):
+              r = math.radians
+              y = math.sin(r(lo2-lo1))*math.cos(r(la2))
+              x = math.cos(r(la1))*math.sin(r(la2)) - math.sin(r(la1))*math.cos(r(la2))*math.cos(r(lo2-lo1))
+              return (math.degrees(math.atan2(y, x)) + 360) % 360
+          T = {"large_airport":"A", "medium_airport":"A", "small_airport":"a", "seaplane_base":"s"}
+          aps = {a["id"]: a for a in rows("airports.csv") if a["iso_country"] == "IT" and a["type"] in T}
+          rw = {}
+          for r in rows("runways.csv"):
+              if r["airport_ref"] not in aps or r.get("closed") == "1":
+                  continue
+              h = num(r["le_heading_degT"])
+              if h is None and num(r["he_heading_degT"]) is not None:
+                  h = (num(r["he_heading_degT"]) + 180) % 360
+              if h is None:
+                  c = [num(r[k]) for k in ("le_latitude_deg","le_longitude_deg","he_latitude_deg","he_longitude_deg")]
+                  if None not in c: h = brg(*c)
+              m = re.match(r"\d{1,2}", r["le_ident"] or "")
+              if h is None and m:
+                  h = (int(m.group()) * 10 + 3) % 360      # da magnetico a vero (circa)
+              if h is None:
+                  continue
+              lm = num(r["length_ft"])
+              rw.setdefault(r["airport_ref"], []).append(
+                  [r["le_ident"] or "", r["he_ident"] or "", round(h), round(lm*0.3048) if lm else None, r["surface"] or ""])
+          out = []
+          for k, a in aps.items():
+              la, lo = num(a["latitude_deg"]), num(a["longitude_deg"])
+              if la is None or lo is None:
+                  continue
+              code = a.get("icao_code") or a.get("gps_code") or a["ident"]
+              out.append({"id": code, "n": a["name"], "c": a["municipality"], "t": T[a["type"]],
+                          "la": round(la, 4), "lo": round(lo, 4), "e": num(a["elevation_ft"]), "r": rw.get(k, []),
+                          "k": (a.get("keywords") or "")[:120]})
+          out.sort(key=lambda f: f["n"])
+          with open("data/fields.json", "w") as f:
+              json.dump(out, f, separators=(",", ":"), ensure_ascii=False)
+          print(len(out), "campi")
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
