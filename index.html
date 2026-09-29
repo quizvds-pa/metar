@@ -68,6 +68,8 @@
   .pick label,.lbl{display:block;font-size:12px;color:var(--sub);text-transform:uppercase;letter-spacing:.3px;margin:0 0 5px 4px}
   .searchbox{position:relative;display:flex;gap:8px}
   .searchbox input{flex:1;min-width:0}
+  .locbtn{width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;flex:none;border-radius:12px}
+  .locbtn.busy svg{animation:sp 1s linear infinite}
   .results{display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.18);z-index:20;max-height:360px;overflow:auto}
   .results.open{display:block}
   .res{padding:10px 14px;border-bottom:1px solid var(--sep);cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center}
@@ -107,7 +109,7 @@
   <span class="lbl">Campo, aviosuperficie o aeroporto</span>
   <div class="searchbox">
     <input id="search" type="search" autocomplete="off" enterkeyhint="search" placeholder="Cerca nome, codice o comune (es. Ozzano, LIPE)">
-    <button class="btn ghost small" id="nearMe">📍 Vicino a me</button>
+    <button class="btn ghost locbtn" id="nearMe" title="Campi vicino a me" aria-label="Campi vicino a me"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><line x1="12" y1="1.5" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22.5"/><line x1="1.5" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22.5" y2="12"/></svg></button>
     <div class="results" id="results"></div>
   </div>
   <div class="chosen" id="chosen">—</div>
@@ -684,13 +686,13 @@ $("search").onkeydown = e=>{ if(e.key==="Enter" && state.lastResults && state.la
 document.addEventListener("click", e=>{ if(!e.target.closest(".searchbox")) $("results").classList.remove("open"); });
 $("nearMe").onclick = ()=>{
   if(!navigator.geolocation){ alert("La posizione non è disponibile su questo dispositivo."); return; }
-  $("nearMe").textContent = "📍 …";
+  $("nearMe").classList.add("busy");
   navigator.geolocation.getCurrentPosition(p=>{
-    $("nearMe").textContent = "📍 Vicino a me";
+    $("nearMe").classList.remove("busy");
     const {latitude:la, longitude:lo} = p.coords;
     const list = state.fields.filter(f=>f.la!=null).map(f=>({f, d:distKm(la,lo,f.la,f.lo)})).sort((a,b)=>a.d-b.d).slice(0,10);
     showResults(list.map(x=>x.f));
-  }, err=>{ $("nearMe").textContent = "📍 Vicino a me"; alert("Posizione non disponibile ("+err.message+")."); }, {enableHighAccuracy:false, timeout:10000});
+  }, err=>{ $("nearMe").classList.remove("busy"); alert("Posizione non disponibile ("+err.message+")."); }, {enableHighAccuracy:false, timeout:10000});
 };
 $("selRwy").onchange = e=>{ state.rwy = +e.target.value; render(); };
 $("selStation").onchange = e=>{
